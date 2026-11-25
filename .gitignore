@@ -4,9 +4,13 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.tsbuildinfo
 .env*
 !.env.example
 data/
 *.db
 *.db-wal
 *.db-shm
+.aistudio/
+.playwright-cli/
+public/assets/aistudio/

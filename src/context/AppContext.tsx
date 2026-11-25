@@ -302,6 +302,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // USER ACTIONS (GOOGLE LOGIN + CRUD)
   // =========================================================================
   const loginUserWithGoogle = useCallback(async () => {
+    if (!auth) {
+      addToast(
+        'error',
+        'Konfigurasi Firebase Belum Tersedia',
+        'Lengkapi firebase-applet-config.json atau variabel VITE_FIREBASE_* terlebih dahulu.',
+      );
+      return false;
+    }
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const idToken = await cred.user.getIdToken();
@@ -326,7 +334,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logoutUser = useCallback(async () => {
     try {
-      await signOut(auth);
+      if (auth) await signOut(auth);
     } catch {
       // ignore firebase signout error
     }

@@ -40,10 +40,13 @@ const firebaseConfig = fs.existsSync(firebaseConfigPath)
   ? (JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8')) as { projectId?: string })
   : {};
 
+const firebaseProjectId =
+  process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId || undefined;
+
 const firebaseAdminApp =
   getApps().length > 0
     ? getApp()
-    : initializeApp(firebaseConfig.projectId ? { projectId: firebaseConfig.projectId } : undefined);
+    : initializeApp(firebaseProjectId ? { projectId: firebaseProjectId } : undefined);
 
 interface AuthedRequest extends Request {
   session?: SessionTokenPayload;
@@ -168,6 +171,10 @@ async function startServer() {
   // =========================================================================
   // 1. PUBLIC READ-ONLY DIRECTORY & SETTINGS
   // =========================================================================
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, app: 'PRINT KAMPUS' });
+  });
+
   app.get('/api/public/bootstrap', (_req, res) => {
     const mitras = (
       db.prepare('SELECT * FROM mitras ORDER BY created_at DESC').all() as Record<
