@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Check,
-  Database,
   Edit3,
   KeyRound,
   LogOut,
@@ -20,7 +19,7 @@ import { formatRupiah } from '../utils/pricing';
 import { OrderVolumeChart, RevenueBreakdownChart } from './AnalyticsCharts';
 import { KatalogTarif } from './KatalogTarif';
 import { SimulasiKomisi } from './SimulasiKomisi';
-import { IssueStatusText, OrderStatusText } from './StatusLabel';
+import { IssueStatusText } from './StatusLabel';
 
 type AdminSection = 'ringkasan' | 'mitra' | 'komisi' | 'transaksi' | 'akun';
 
@@ -29,9 +28,9 @@ export const PortalAdmin: React.FC = () => {
     navigatePortal,
     isDark,
     toggleDark,
-    hasAdminInDb,
-    adminToken,
+    adminUid,
     adminProfile,
+    adminAuthError,
     adminOrders,
     adminMitras,
     adminServices,
@@ -39,9 +38,9 @@ export const PortalAdmin: React.FC = () => {
     adminPayouts,
     adminUsers,
     adminAccounts,
+    adminInvites,
     commissionSettings,
-    setupFirstAdmin,
-    loginAdmin,
+    loginAdminWithGoogle,
     logoutAdmin,
     updateCommissionSettings,
     adminCreateMitra,
@@ -58,24 +57,17 @@ export const PortalAdmin: React.FC = () => {
     adminUpdateTicket,
     adminDeleteTicket,
     adminProcessPayout,
-    adminCreateAccount,
+    adminInviteAccount,
+    adminDeleteInvite,
     adminUpdateAccount,
     adminDeleteAccount,
     adminDeleteUser,
   } = useApp();
 
   const [section, setSection] = useState<AdminSection>('ringkasan');
-
-  // Setup / Login Admin state
-  const [setupUsername, setSetupUsername] = useState('');
-  const [setupEmail, setSetupEmail] = useState('');
-  const [setupFullName, setSetupFullName] = useState('');
-  const [setupPassword, setSetupPassword] = useState('');
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
 
-  // Commission form synced with DB
+  // Commission form synced with Firestore
   const [commPercent, setCommPercent] = useState(commissionSettings.platformCommissionPercent);
   const [minOrderAmt, setMinOrderAmt] = useState(commissionSettings.minimumOrderAmount);
   const [payoutMin, setPayoutMin] = useState(commissionSettings.payoutMinimum);
@@ -91,7 +83,6 @@ export const PortalAdmin: React.FC = () => {
   // Mitra Create/Edit state
   const [showAddMitra, setShowAddMitra] = useState(false);
   const [mEmail, setMEmail] = useState('');
-  const [mPass, setMPass] = useState('');
   const [mName, setMName] = useState('');
   const [mArea, setMArea] = useState('');
   const [mAddress, setMAddress] = useState('');
@@ -104,7 +95,6 @@ export const PortalAdmin: React.FC = () => {
 
   const [editingMitra, setEditingMitra] = useState<Mitra | null>(null);
   const [emEmail, setEmEmail] = useState('');
-  const [emPass, setEmPass] = useState('');
   const [emName, setEmName] = useState('');
   const [emArea, setEmArea] = useState('');
   const [emBw, setEmBw] = useState(250);
@@ -124,16 +114,15 @@ export const PortalAdmin: React.FC = () => {
   const [tDesc, setTDesc] = useState('');
   const [ticketNotes, setTicketNotes] = useState<Record<string, string>>({});
 
-  // Admin Account Create/Edit state
+  // Admin Account Invite/Edit state
   const [showAddAdmin, setShowAddAdmin] = useState(false);
   const [aUser, setAUser] = useState('');
   const [aEmail, setAEmail] = useState('');
   const [aName, setAName] = useState('');
-  const [aPass, setAPass] = useState('');
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
+  const [eaUser, setEaUser] = useState('');
   const [eaName, setEaName] = useState('');
   const [eaEmail, setEaEmail] = useState('');
-  const [eaPass, setEaPass] = useState('');
 
   const metrics = useMemo(() => {
     const valid = adminOrders.filter((o) => o.status !== 'dibatalkan');
@@ -144,22 +133,9 @@ export const PortalAdmin: React.FC = () => {
     return { totalGmv, totalCommission, totalMitraShare, activeMitras };
   }, [adminOrders, adminMitras]);
 
-  const handleSetupAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLoginAdminGoogle = async () => {
     setAuthBusy(true);
-    await setupFirstAdmin({
-      username: setupUsername,
-      email: setupEmail,
-      fullName: setupFullName,
-      password: setupPassword,
-    });
-    setAuthBusy(false);
-  };
-
-  const handleLoginAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthBusy(true);
-    await loginAdmin(loginIdentifier, loginPassword);
+    await loginAdminWithGoogle();
     setAuthBusy(false);
   };
 
@@ -178,7 +154,6 @@ export const PortalAdmin: React.FC = () => {
     e.preventDefault();
     const ok = await adminCreateMitra({
       loginEmail: mEmail,
-      password: mPass,
       name: mName,
       campusArea: mArea,
       address: mAddress,
@@ -191,7 +166,6 @@ export const PortalAdmin: React.FC = () => {
     });
     if (ok) {
       setMEmail('');
-      setMPass('');
       setMName('');
       setMArea('');
       setMAddress('');
@@ -202,7 +176,6 @@ export const PortalAdmin: React.FC = () => {
   const startEditMitra = (m: Mitra) => {
     setEditingMitra(m);
     setEmEmail(m.loginEmail);
-    setEmPass('');
     setEmName(m.name);
     setEmArea(m.campusArea);
     setEmBw(m.pricing.bwPerPage);
@@ -214,7 +187,6 @@ export const PortalAdmin: React.FC = () => {
     if (!editingMitra) return;
     const ok = await adminUpdateMitra(editingMitra.id, {
       loginEmail: emEmail,
-      password: emPass.trim() || undefined,
       name: emName,
       campusArea: emArea,
       bwPerPage: emBw,
@@ -254,19 +226,17 @@ export const PortalAdmin: React.FC = () => {
     }
   };
 
-  const handleCreateAdminAccount = async (e: React.FormEvent) => {
+  const handleInviteAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await adminCreateAccount({
+    const ok = await adminInviteAccount({
       username: aUser,
       email: aEmail,
       fullName: aName,
-      password: aPass,
     });
     if (ok) {
       setAUser('');
       setAEmail('');
       setAName('');
-      setAPass('');
       setShowAddAdmin(false);
     }
   };
@@ -297,7 +267,7 @@ export const PortalAdmin: React.FC = () => {
             </span>
           </div>
 
-          {adminToken && (
+          {adminUid && (
             <nav aria-label="Navigasi Portal Admin" className="hidden lg:flex items-center gap-5">
               {(
                 [
@@ -305,7 +275,7 @@ export const PortalAdmin: React.FC = () => {
                   ['mitra', `Mitra & Pencairan (${adminMitras.length})`],
                   ['komisi', 'Komisi & Katalog'],
                   ['transaksi', `Pesanan & Tiket (${adminOrders.length})`],
-                  ['akun', 'Akun Database'],
+                  ['akun', 'Akun Firestore'],
                 ] as [AdminSection, string][]
               ).map(([id, label]) => (
                 <button
@@ -333,10 +303,10 @@ export const PortalAdmin: React.FC = () => {
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {adminToken && (
+            {adminUid && (
               <button
                 type="button"
-                onClick={logoutAdmin}
+                onClick={() => void logoutAdmin()}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -348,140 +318,38 @@ export const PortalAdmin: React.FC = () => {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {hasAdminInDb === null && (!adminToken || !adminProfile) ? (
-          <div className="max-w-md mx-auto mt-8 pk-surface-card rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-            Memeriksa status akun Admin di database...
-          </div>
-        ) : !adminToken || !adminProfile ? (
+        {!adminUid || !adminProfile ? (
           <div className="max-w-md mx-auto mt-8 pk-surface-card rounded-3xl border border-slate-200/80 dark:border-slate-800 p-7 space-y-6">
             <div className="space-y-2 text-center">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center">
-                {hasAdminInDb === false ? (
-                  <Database className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                ) : (
-                  <ShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                )}
+                <ShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               </div>
               <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">
-                {hasAdminInDb === false
-                  ? 'Buat Akun Admin Database'
-                  : 'Login Portal Admin Platform'}
+                Login Portal Admin Platform
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                {hasAdminInDb === false
-                  ? 'Database Admin masih kosong. Daftarkan akun Admin pertama yang tersimpan terenkripsi di database server.'
-                  : 'Masuk dengan username atau email Admin beserta kata sandi yang tersimpan di database.'}
+                Masuk dengan akun Google Super Admin atau email Admin yang telah diundang di Cloud Firestore.
               </p>
             </div>
 
-            {hasAdminInDb === false ? (
-              <form onSubmit={handleSetupAdmin} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-semibold mb-1" htmlFor="setup-adm-user">
-                    Username Admin
-                  </label>
-                  <input
-                    id="setup-adm-user"
-                    type="text"
-                    required
-                    minLength={3}
-                    value={setupUsername}
-                    onChange={(e) => setSetupUsername(e.target.value)}
-                    placeholder="adminkampus"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1" htmlFor="setup-adm-email">
-                    Email Admin
-                  </label>
-                  <input
-                    id="setup-adm-email"
-                    type="email"
-                    required
-                    value={setupEmail}
-                    onChange={(e) => setSetupEmail(e.target.value)}
-                    placeholder="admin@printkampus.id"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1" htmlFor="setup-adm-name">
-                    Nama Lengkap
-                  </label>
-                  <input
-                    id="setup-adm-name"
-                    type="text"
-                    required
-                    value={setupFullName}
-                    onChange={(e) => setSetupFullName(e.target.value)}
-                    placeholder="Administrator Utama"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1" htmlFor="setup-adm-pass">
-                    Kata Sandi (Min. 8 karakter)
-                  </label>
-                  <input
-                    id="setup-adm-pass"
-                    type="password"
-                    required
-                    minLength={8}
-                    value={setupPassword}
-                    onChange={(e) => setSetupPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={authBusy}
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
-                >
-                  {authBusy ? 'Menyimpan...' : 'Simpan Admin ke Database & Masuk'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleLoginAdmin} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5" htmlFor="adm-login-id">
-                    Username atau Email Admin
-                  </label>
-                  <input
-                    id="adm-login-id"
-                    type="text"
-                    required
-                    value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="admin@printkampus.id"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5" htmlFor="adm-login-pass">
-                    Kata Sandi
-                  </label>
-                  <input
-                    id="adm-login-pass"
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={authBusy}
-                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
-                >
-                  <KeyRound className="w-4 h-4" />
-                  <span>{authBusy ? 'Memverifikasi...' : 'Masuk Dashboard Admin'}</span>
-                </button>
-              </form>
+            {adminAuthError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-xs font-medium text-rose-700 dark:text-rose-300"
+              >
+                {adminAuthError}
+              </div>
             )}
+
+            <button
+              type="button"
+              onClick={handleLoginAdminGoogle}
+              disabled={authBusy}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>{authBusy ? 'Memverifikasi...' : 'Masuk dengan Google (Admin)'}</span>
+            </button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -572,7 +440,7 @@ export const PortalAdmin: React.FC = () => {
                   <div>
                     <h2 className="text-lg font-bold">Manajemen Akun & Toko Mitra (CRUD)</h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Daftarkan akun Mitra (email + sandi) dan kelola tarif mereka di database.
+                      Daftarkan email Google Mitra dan kelola tarif mereka di Cloud Firestore.
                     </p>
                   </div>
                   <button
@@ -590,11 +458,11 @@ export const PortalAdmin: React.FC = () => {
                     onSubmit={handleCreateMitra}
                     className="pk-surface-card rounded-2xl border border-indigo-200 dark:border-indigo-800 p-5 space-y-4"
                   >
-                    <h3 className="text-sm font-bold">Registrasi Akun & Toko Mitra ke Database</h3>
+                    <h3 className="text-sm font-bold">Registrasi Akun & Toko Mitra ke Firestore</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-semibold mb-1" htmlFor="new-m-email">
-                          Email Login Mitra *
+                          Email Google Mitra *
                         </label>
                         <input
                           id="new-m-email"
@@ -602,22 +470,7 @@ export const PortalAdmin: React.FC = () => {
                           required
                           value={mEmail}
                           onChange={(e) => setMEmail(e.target.value)}
-                          placeholder="berkah@printkampus.id"
-                          className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold mb-1" htmlFor="new-m-pass">
-                          Kata Sandi Mitra (Min. 6) *
-                        </label>
-                        <input
-                          id="new-m-pass"
-                          type="password"
-                          required
-                          minLength={6}
-                          value={mPass}
-                          onChange={(e) => setMPass(e.target.value)}
-                          placeholder="••••••••"
+                          placeholder="berkahprint@gmail.com"
                           className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
                         />
                       </div>
@@ -774,15 +627,7 @@ export const PortalAdmin: React.FC = () => {
                         required
                         value={emEmail}
                         onChange={(e) => setEmEmail(e.target.value)}
-                        aria-label="Edit Email Login Mitra"
-                        className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
-                      />
-                      <input
-                        type="password"
-                        value={emPass}
-                        onChange={(e) => setEmPass(e.target.value)}
-                        placeholder="Sandi baru (kosongkan jika tetap)"
-                        aria-label="Reset Kata Sandi Mitra"
+                        aria-label="Edit Email Google Mitra"
                         className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
                       />
                       <input
@@ -1348,16 +1193,16 @@ export const PortalAdmin: React.FC = () => {
               </div>
             )}
 
-            {/* 5. AKUN DATABASE (ADMINS CRUD & GOOGLE USERS) */}
+            {/* 5. AKUN FIRESTORE (ADMINS CRUD, INVITES & GOOGLE USERS) */}
             {section === 'akun' && (
               <div className="space-y-8">
-                {/* Admin Accounts CRUD */}
+                {/* Admin Accounts & Invites CRUD */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-lg font-bold">Akun Admin Database (CRUD)</h2>
+                      <h2 className="text-lg font-bold">Akun & Undangan Admin Firestore (CRUD)</h2>
                       <p className="text-xs text-slate-500">
-                        Semua akun dan kata sandi tersimpan terenkripsi scrypt di SQLite database.
+                        Admin terverifikasi lewat Firebase Authentication dan hak aksesnya tersimpan di Cloud Firestore.
                       </p>
                     </div>
                     <button
@@ -1366,18 +1211,19 @@ export const PortalAdmin: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Tambah Admin</span>
+                      <span>Undang Email Admin</span>
                     </button>
                   </div>
 
                   {showAddAdmin && (
                     <form
-                      onSubmit={handleCreateAdminAccount}
-                      className="pk-surface-card rounded-2xl border border-indigo-200 dark:border-indigo-800 p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end"
+                      onSubmit={handleInviteAdmin}
+                      className="pk-surface-card rounded-2xl border border-indigo-200 dark:border-indigo-800 p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
                     >
                       <input
                         type="text"
                         required
+                        minLength={2}
                         value={aUser}
                         onChange={(e) => setAUser(e.target.value)}
                         placeholder="Username"
@@ -1388,7 +1234,7 @@ export const PortalAdmin: React.FC = () => {
                         required
                         value={aEmail}
                         onChange={(e) => setAEmail(e.target.value)}
-                        placeholder="Email Admin"
+                        placeholder="Email Google Admin"
                         className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
                       />
                       <input
@@ -1399,22 +1245,44 @@ export const PortalAdmin: React.FC = () => {
                         placeholder="Nama Lengkap"
                         className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
                       />
-                      <input
-                        type="password"
-                        required
-                        minLength={8}
-                        value={aPass}
-                        onChange={(e) => setAPass(e.target.value)}
-                        placeholder="Sandi (min. 8)"
-                        className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
-                      />
                       <button
                         type="submit"
                         className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold cursor-pointer"
                       >
-                        Simpan Admin
+                        Kirim Undangan Admin
                       </button>
                     </form>
+                  )}
+
+                  {adminInvites.length > 0 && (
+                    <div className="pk-surface-card rounded-2xl border border-amber-200 dark:border-amber-800/70 p-4 space-y-2">
+                      <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                        Menunggu Aktivasi Login Google ({adminInvites.length})
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {adminInvites.map((inv) => (
+                          <div
+                            key={inv.id}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-semibold truncate">{inv.fullName}</p>
+                              <p className="text-slate-500 truncate">
+                                @{inv.username} · {inv.email}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void adminDeleteInvite(inv.id)}
+                              aria-label={`Batalkan undangan ${inv.email}`}
+                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1429,21 +1297,23 @@ export const PortalAdmin: React.FC = () => {
                             <div className="space-y-2">
                               <input
                                 type="text"
+                                value={eaUser}
+                                onChange={(e) => setEaUser(e.target.value)}
+                                placeholder="Username"
+                                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs"
+                              />
+                              <input
+                                type="text"
                                 value={eaName}
                                 onChange={(e) => setEaName(e.target.value)}
+                                placeholder="Nama Lengkap"
                                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs"
                               />
                               <input
                                 type="email"
                                 value={eaEmail}
                                 onChange={(e) => setEaEmail(e.target.value)}
-                                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs"
-                              />
-                              <input
-                                type="password"
-                                value={eaPass}
-                                onChange={(e) => setEaPass(e.target.value)}
-                                placeholder="Sandi baru (opsional)"
+                                placeholder="Email"
                                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-1.5 text-xs"
                               />
                               <div className="flex justify-end gap-1.5">
@@ -1458,9 +1328,9 @@ export const PortalAdmin: React.FC = () => {
                                   type="button"
                                   onClick={async () => {
                                     const ok = await adminUpdateAccount(acc.id, {
+                                      username: eaUser,
                                       fullName: eaName,
                                       email: eaEmail,
-                                      password: eaPass.trim() || undefined,
                                     });
                                     if (ok) setEditingAdminId(null);
                                   }}
@@ -1483,9 +1353,9 @@ export const PortalAdmin: React.FC = () => {
                                   type="button"
                                   onClick={() => {
                                     setEditingAdminId(acc.id);
+                                    setEaUser(acc.username);
                                     setEaName(acc.fullName);
                                     setEaEmail(acc.email);
-                                    setEaPass('');
                                   }}
                                   aria-label={`Edit admin ${acc.username}`}
                                   className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"

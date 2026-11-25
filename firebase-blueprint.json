@@ -1,17 +1,330 @@
 {
   "entities": {
-    "AuthConnectionCheck": {
-      "title": "AuthConnectionCheck",
-      "description": "Minimal Firebase setup check; operational records and hashed credentials are stored in server-side SQLite.",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Mahasiswa / User account authenticated via Google Auth",
       "type": "object",
       "properties": {
-        "status": {
-          "type": "string",
-          "maxLength": 32
-        }
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 180 },
+        "name": { "type": "string", "maxLength": 120 },
+        "nim": { "type": "string", "maxLength": 40 },
+        "faculty": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["status"]
+      "required": ["uid", "email", "name", "nim", "faculty", "phone", "createdAt", "updatedAt"]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Platform Admin record keyed by Firebase Auth UID",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "maxLength": 180 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "inviteId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "email", "fullName", "createdAt", "updatedAt"]
+    },
+    "AdminInvite": {
+      "title": "AdminInvite",
+      "description": "Pre-authorized Admin email invitation registered by existing Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 180 },
+        "username": { "type": "string", "maxLength": 64 },
+        "fullName": { "type": "string", "maxLength": 120 },
+        "invitedByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "username", "fullName", "invitedByUid", "createdAt"]
+    },
+    "MitraPublic": {
+      "title": "MitraPublic",
+      "description": "Public storefront directory entry for printing partners (no PII or financial balances)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 140 },
+        "campusArea": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 240 },
+        "operatingHours": { "type": "string", "maxLength": 80 },
+        "isOpen": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "queueCount": { "type": "integer" },
+        "servicesOffered": { "type": "array" },
+        "pricing": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "name",
+        "campusArea",
+        "address",
+        "operatingHours",
+        "isOpen",
+        "rating",
+        "queueCount",
+        "servicesOffered",
+        "pricing",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MitraPrivate": {
+      "title": "MitraPrivate",
+      "description": "Private operational and earnings data for Mitra owner and Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "loginEmail": { "type": "string", "maxLength": 180 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 140 },
+        "campusArea": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 240 },
+        "operatingHours": { "type": "string", "maxLength": 80 },
+        "isOpen": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "queueCount": { "type": "integer" },
+        "totalCompletedOrders": { "type": "integer" },
+        "totalEarnings": { "type": "number" },
+        "pendingBalance": { "type": "number" },
+        "servicesOffered": { "type": "array" },
+        "pricing": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "loginEmail",
+        "name",
+        "campusArea",
+        "address",
+        "operatingHours",
+        "isOpen",
+        "rating",
+        "queueCount",
+        "totalCompletedOrders",
+        "totalEarnings",
+        "pendingBalance",
+        "servicesOffered",
+        "pricing",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PrintServiceItem": {
+      "title": "PrintServiceItem",
+      "description": "Catalog tariff service item managed by Admin or Mitra",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "maxLength": 32 },
+        "category": { "type": "string", "enum": ["kertas", "warna", "jilid", "finishing"] },
+        "name": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 400 },
+        "basePrice": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 40 },
+        "isActive": { "type": "boolean" },
+        "createdByRole": { "type": "string", "enum": ["user", "mitra", "admin"] },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "category", "name", "description", "basePrice", "unit", "isActive", "createdByRole", "ownerUid", "createdAt", "updatedAt"]
+    },
+    "CommissionSettings": {
+      "title": "CommissionSettings",
+      "description": "Platform global commission percentage and payout policy",
+      "type": "object",
+      "properties": {
+        "platformCommissionPercent": { "type": "number" },
+        "minimumOrderAmount": { "type": "number" },
+        "firstOrderDiscount": { "type": "number" },
+        "payoutMinimum": { "type": "number" },
+        "supportHotline": { "type": "string", "maxLength": 160 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["platformCommissionPercent", "minimumOrderAmount", "firstOrderDiscount", "payoutMinimum", "supportHotline", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Document printing order linking student, mitra, specs, and status history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "maxLength": 120 },
+        "studentNim": { "type": "string", "maxLength": 40 },
+        "studentPhone": { "type": "string", "maxLength": 40 },
+        "studentEmail": { "type": "string", "maxLength": 180 },
+        "mitraId": { "type": "string", "maxLength": 128 },
+        "mitraOwnerUid": { "type": "string", "maxLength": 128 },
+        "mitraName": { "type": "string", "maxLength": 140 },
+        "mitraLocation": { "type": "string", "maxLength": 160 },
+        "documentTitle": { "type": "string", "maxLength": 200 },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "fileSize": { "type": "string", "maxLength": 40 },
+        "pageCount": { "type": "integer" },
+        "copies": { "type": "integer" },
+        "colorType": { "type": "string", "enum": ["bw", "color", "mixed"] },
+        "paperSize": { "type": "string", "enum": ["A4", "F4", "A3"] },
+        "paperWeight": { "type": "string", "enum": ["70gr", "80gr", "100gr"] },
+        "duplex": { "type": "boolean" },
+        "binding": { "type": "string", "enum": ["none", "staples", "lakban", "spiral_plastik", "spiral_kawat", "hardcover"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "unitPrintPrice": { "type": "number" },
+        "unitBindingPrice": { "type": "number" },
+        "subtotal": { "type": "number" },
+        "platformFee": { "type": "number" },
+        "mitraEarnings": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["QRIS", "GoPay", "DANA", "ShopeePay", "Transfer VA", "COD"] },
+        "paymentStatus": { "type": "string", "enum": ["lunas", "menunggu_bayar", "bayar_di_tempat"] },
+        "status": { "type": "string", "enum": ["menunggu_konfirmasi", "diproses", "siap_diambil", "selesai", "dibatalkan"] },
+        "statusHistory": { "type": "array" },
+        "pickupDeadline": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "orderNumber",
+        "userId",
+        "studentName",
+        "studentNim",
+        "studentPhone",
+        "mitraId",
+        "mitraOwnerUid",
+        "mitraName",
+        "mitraLocation",
+        "documentTitle",
+        "fileName",
+        "fileSize",
+        "pageCount",
+        "copies",
+        "colorType",
+        "paperSize",
+        "paperWeight",
+        "duplex",
+        "binding",
+        "notes",
+        "unitPrintPrice",
+        "unitBindingPrice",
+        "subtotal",
+        "platformFee",
+        "mitraEarnings",
+        "totalAmount",
+        "paymentMethod",
+        "paymentStatus",
+        "status",
+        "statusHistory",
+        "pickupDeadline",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "IssueTicket": {
+      "title": "IssueTicket",
+      "description": "Customer print issue ticket linked to an order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "reporterName": { "type": "string", "maxLength": 120 },
+        "reporterRole": { "type": "string", "enum": ["user", "mitra", "admin"] },
+        "category": { "type": "string", "enum": ["salah_cetak", "keterlambatan", "kertas_rusak", "salah_jilid", "pembayaran", "lainnya"] },
+        "description": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["terbuka", "investigasi", "selesai", "ditolak"] },
+        "adminNote": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "orderNumber",
+        "userId",
+        "reporterName",
+        "reporterRole",
+        "category",
+        "description",
+        "status",
+        "adminNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MitraPayout": {
+      "title": "MitraPayout",
+      "description": "Mitra balance withdrawal request processed by Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mitraId": { "type": "string", "maxLength": 128 },
+        "mitraLoginEmail": { "type": "string", "maxLength": 180 },
+        "mitraName": { "type": "string", "maxLength": 140 },
+        "amount": { "type": "number" },
+        "bankAccount": { "type": "string", "maxLength": 140 },
+        "status": { "type": "string", "enum": ["pending", "selesai", "ditolak"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "mitraId", "mitraLoginEmail", "mitraName", "amount", "bankAccount", "status", "createdAt", "updatedAt"]
     }
   },
-  "firestore": {}
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated student profile records (PII restricted to owner or Admin)"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminAccount" },
+      "description": "Platform admin profiles keyed by Firebase Auth UID"
+    },
+    "/admin_invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/AdminInvite" },
+      "description": "Admin email invites created by existing Admins"
+    },
+    "/mitra_public/{mitraId}": {
+      "schema": { "$ref": "#/entities/MitraPublic" },
+      "description": "Public storefront catalog for printing partners without PII"
+    },
+    "/mitras/{mitraId}": {
+      "schema": { "$ref": "#/entities/MitraPrivate" },
+      "description": "Private operational and balance data for Mitra owners and Admins"
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "#/entities/PrintServiceItem" },
+      "description": "Global print service & tariff catalog"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/CommissionSettings" },
+      "description": "Global commission settings document (platform)"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Document print orders scoped to userId, mitraLoginEmail, and Admin"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/IssueTicket" },
+      "description": "Customer print issue tickets scoped to userId and Admin"
+    },
+    "/payouts/{payoutId}": {
+      "schema": { "$ref": "#/entities/MitraPayout" },
+      "description": "Mitra payout withdrawal requests scoped to mitraLoginEmail and Admin"
+    }
+  }
 }

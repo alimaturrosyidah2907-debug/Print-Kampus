@@ -28,13 +28,14 @@ export const PortalMitra: React.FC = () => {
     navigatePortal,
     isDark,
     toggleDark,
-    mitraToken,
+    mitraUid,
     mitraProfile,
+    mitraAuthError,
     mitraOrders,
     mitraServices,
     mitraPayouts,
     commissionSettings,
-    loginMitra,
+    loginMitraWithGoogle,
     logoutMitra,
     updateMitraProfile,
     toggleMitraSelfOpen,
@@ -50,9 +51,6 @@ export const PortalMitra: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | OrderStatus>('all');
   const [editingProfile, setEditingProfile] = useState(false);
 
-  // Login form
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Profile & pricing edit fields
@@ -66,7 +64,6 @@ export const PortalMitra: React.FC = () => {
   const [editLakban, setEditLakban] = useState(3500);
   const [editSpiralKawat, setEditSpiralKawat] = useState(12000);
   const [editHardcover, setEditHardcover] = useState(35000);
-  const [newPassword, setNewPassword] = useState('');
 
   // Payout form state
   const [payoutAmount, setPayoutAmount] = useState('50000');
@@ -86,10 +83,9 @@ export const PortalMitra: React.FC = () => {
     return { gmv, comm, net };
   }, [mitraOrders]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setLoggingIn(true);
-    await loginMitra(loginEmail, loginPassword);
+    await loginMitraWithGoogle();
     setLoggingIn(false);
   };
 
@@ -105,7 +101,6 @@ export const PortalMitra: React.FC = () => {
     setEditLakban(mitraProfile.pricing.bindings.lakban);
     setEditSpiralKawat(mitraProfile.pricing.bindings.spiral_kawat);
     setEditHardcover(mitraProfile.pricing.bindings.hardcover);
-    setNewPassword('');
     setEditingProfile(true);
   };
 
@@ -117,7 +112,6 @@ export const PortalMitra: React.FC = () => {
       campusArea: editArea.trim(),
       address: editAddress.trim(),
       operatingHours: editHours.trim(),
-      newPassword: newPassword.trim() || undefined,
       pricing: {
         ...mitraProfile.pricing,
         bwPerPage: Math.max(50, editBw),
@@ -133,7 +127,6 @@ export const PortalMitra: React.FC = () => {
     });
     if (ok) {
       setEditingProfile(false);
-      setNewPassword('');
     }
   };
 
@@ -168,7 +161,7 @@ export const PortalMitra: React.FC = () => {
             </span>
           </div>
 
-          {mitraToken && (
+          {mitraUid && (
             <nav aria-label="Navigasi Portal Mitra" className="hidden md:flex items-center gap-6">
               {(
                 [
@@ -202,10 +195,10 @@ export const PortalMitra: React.FC = () => {
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {mitraToken && (
+            {mitraUid && (
               <button
                 type="button"
-                onClick={logoutMitra}
+                onClick={() => void logoutMitra()}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -217,7 +210,7 @@ export const PortalMitra: React.FC = () => {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {!mitraToken || !mitraProfile ? (
+        {!mitraUid || !mitraProfile ? (
           <div className="max-w-md mx-auto mt-8 pk-surface-card rounded-3xl border border-slate-200/80 dark:border-slate-800 p-7 space-y-6">
             <div className="space-y-2 text-center">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
@@ -227,50 +220,28 @@ export const PortalMitra: React.FC = () => {
                 Login Portal Mitra Percetakan
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Masukkan email dan kata sandi akun Mitra yang telah didaftarkan secara manual oleh Admin di database.
+                Masuk dengan akun Google yang emailnya telah didaftarkan oleh Admin Platform di Cloud Firestore.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" htmlFor="mitra-login-email">
-                  Email Login Mitra
-                </label>
-                <input
-                  id="mitra-login-email"
-                  type="email"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="mitra@percetakan.id"
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" htmlFor="mitra-login-pass">
-                  Kata Sandi
-                </label>
-                <input
-                  id="mitra-login-pass"
-                  type="password"
-                  required
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loggingIn}
-                className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
+            {mitraAuthError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-4 py-3 text-xs font-medium text-rose-700 dark:text-rose-300"
               >
-                <KeyRound className="w-4 h-4" />
-                <span>{loggingIn ? 'Memverifikasi...' : 'Masuk ke Panel Mitra'}</span>
-              </button>
-            </form>
+                {mitraAuthError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loggingIn}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold cursor-pointer"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>{loggingIn ? 'Memverifikasi Akun...' : 'Masuk dengan Google (Mitra)'}</span>
+            </button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -327,7 +298,7 @@ export const PortalMitra: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Profil, Tarif & Sandi</span>
+                  <span>Edit Profil & Tarif</span>
                 </button>
 
                 <button
@@ -353,7 +324,7 @@ export const PortalMitra: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Konfigurasi Profil, Tarif & Sandi Mitra
+                    Konfigurasi Profil & Tarif Mitra
                   </h2>
                   <button
                     type="button"
@@ -461,16 +432,15 @@ export const PortalMitra: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold mb-1" htmlFor="m-edit-pass">
-                      Sandi Baru (Opsional, min. 8 karakter)
+                    <label className="block text-xs font-semibold mb-1" htmlFor="m-edit-hard">
+                      Hardcover Skripsi (Rp)
                     </label>
                     <input
-                      id="m-edit-pass"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Kosongkan jika tidak diubah"
-                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
+                      id="m-edit-hard"
+                      type="number"
+                      value={editHardcover}
+                      onChange={(e) => setEditHardcover(Number(e.target.value))}
+                      className="w-full font-mono-num rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
                     />
                   </div>
                 </div>

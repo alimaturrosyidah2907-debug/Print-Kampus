@@ -1,4 +1,5 @@
 import { AppProvider, useApp } from './context/AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PortalLanding } from './components/PortalLanding';
 import { PortalUser } from './components/PortalUser';
 import { PortalMitra } from './components/PortalMitra';
@@ -21,8 +22,10 @@ function PrintKampusRouter() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <PrintKampusRouter />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <PrintKampusRouter />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

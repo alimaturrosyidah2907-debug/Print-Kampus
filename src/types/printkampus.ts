@@ -60,6 +60,7 @@ export interface MitraPricing {
 export interface Mitra {
   id: string;
   loginEmail: string;
+  ownerUid?: string;
   name: string;
   campusArea: string;
   address: string;
@@ -73,6 +74,7 @@ export interface Mitra {
   servicesOffered: string[];
   pricing: MitraPricing;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Order {
@@ -84,6 +86,7 @@ export interface Order {
   studentPhone: string;
   studentEmail?: string;
   mitraId: string;
+  mitraOwnerUid?: string;
   mitraName: string;
   mitraLocation: string;
   documentTitle: string;
@@ -109,6 +112,7 @@ export interface Order {
   statusHistory: StatusHistoryEntry[];
   pickupDeadline: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface PrintServiceItem {
@@ -121,6 +125,9 @@ export interface PrintServiceItem {
   unit: string;
   isActive: boolean;
   createdByRole?: UserRole;
+  ownerUid?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface IssueTicket {
@@ -141,11 +148,13 @@ export interface IssueTicket {
 export interface MitraPayout {
   id: string;
   mitraId: string;
+  mitraLoginEmail?: string;
   mitraName: string;
   amount: number;
   bankAccount: string;
   status: PayoutStatus;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CommissionSettings {
@@ -172,6 +181,16 @@ export interface AdminAccount {
   username: string;
   email: string;
   fullName: string;
+  inviteId?: string;
+  createdAt: string;
+}
+
+export interface AdminInvite {
+  id: string;
+  email: string;
+  username: string;
+  fullName: string;
+  invitedByUid: string;
   createdAt: string;
 }
 

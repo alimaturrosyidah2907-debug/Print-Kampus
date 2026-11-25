@@ -42,7 +42,7 @@ export const PortalUser: React.FC = () => {
     toggleDark,
     publicMitras,
     publicServices,
-    userToken,
+    userUid,
     userProfile,
     userOrders,
     userTickets,
@@ -103,7 +103,7 @@ export const PortalUser: React.FC = () => {
   };
 
   const openCreateModal = (preset?: OrderPresetDraft) => {
-    if (!userToken) {
+    if (!userUid) {
       void handleGoogleLogin();
       return;
     }
@@ -195,7 +195,7 @@ export const PortalUser: React.FC = () => {
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {userToken ? (
+            {userUid ? (
               <>
                 <button
                   type="button"
@@ -269,7 +269,7 @@ export const PortalUser: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  {userToken ? (
+                  {userUid ? (
                     <button
                       type="button"
                       onClick={() => openCreateModal()}
@@ -306,7 +306,7 @@ export const PortalUser: React.FC = () => {
             </section>
 
             {/* Google Account Status / Profile Card */}
-            {!userToken ? (
+            {!userUid ? (
               <section className="pk-surface-card rounded-2xl border border-indigo-200 dark:border-indigo-800/60 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <h2 className="text-base font-bold text-slate-900 dark:text-white">
@@ -500,7 +500,7 @@ export const PortalUser: React.FC = () => {
             </section>
 
             {/* User Orders History (if logged in) */}
-            {userToken && (
+            {userUid && (
               <section aria-labelledby="order-history-heading" className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
@@ -709,7 +709,7 @@ export const PortalUser: React.FC = () => {
               </p>
             </div>
 
-            {!userToken ? (
+            {!userUid ? (
               <div className="pk-surface-card rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3">
                 <p className="text-sm font-semibold">Masuk dengan Google terlebih dahulu</p>
                 <button
@@ -738,28 +738,30 @@ export const PortalUser: React.FC = () => {
                           <span className="font-mono-num text-xs font-bold">{t.orderNumber}</span>
                           <IssueStatusText status={t.status} />
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTicketId(t.id);
-                              setEditTicketDesc(t.description);
-                              setEditTicketCat(t.category);
-                            }}
-                            aria-label={`Edit tiket ${t.orderNumber}`}
-                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs cursor-pointer"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void deleteUserTicket(t.id)}
-                            aria-label={`Hapus tiket ${t.orderNumber}`}
-                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {t.status === 'terbuka' && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTicketId(t.id);
+                                setEditTicketDesc(t.description);
+                                setEditTicketCat(t.category);
+                              }}
+                              aria-label={`Edit tiket ${t.orderNumber}`}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteUserTicket(t.id)}
+                              aria-label={`Hapus tiket ${t.orderNumber}`}
+                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {isEditing ? (

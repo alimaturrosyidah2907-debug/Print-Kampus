@@ -148,7 +148,7 @@ export const PortalLanding: React.FC = () => {
                     Portal Mitra Percetakan
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Masuk dengan email dan kata sandi mitra yang didaftarkan Admin. Kelola antrean cetak, tarif toko, layanan, dan pencairan saldo.
+                    Masuk menggunakan akun Google Mitra yang telah didaftarkan Admin. Kelola antrean cetak, tarif toko, layanan, dan pencairan saldo.
                   </p>
                 </div>
               </div>
@@ -173,7 +173,7 @@ export const PortalLanding: React.FC = () => {
                     Portal Admin Platform
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Masuk dengan akun Admin database. Atur persentase komisi potongan mitra, daftarkan akun mitra, kelola katalog, order, dan tiket.
+                    Masuk dengan akun Google Admin terotorisasi di Firestore. Atur persentase komisi potongan mitra, daftarkan akun mitra, kelola katalog, order, dan tiket.
                   </p>
                 </div>
               </div>

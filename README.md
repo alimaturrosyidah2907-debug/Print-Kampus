@@ -1,49 +1,39 @@
 # PRINT KAMPUS
 
-Aplikasi web layanan cetak dokumen kampus berbasis React, TypeScript, Three.js, Express, dan SQLite dengan tiga portal terpisah untuk **User**, **Mitra Percetakan**, dan **Admin Platform**.
+Aplikasi web Single-Page Application (SPA) **100% client-side** berbasis **React**, **TypeScript**, **Three.js**, **Firebase Authentication**, dan **Cloud Firestore** dengan tiga portal terpisah untuk **User**, **Mitra Percetakan**, dan **Admin Platform**.
 
-## Portal & Peran Pengguna
+## Arsitektur & Penyimpanan Cloud Firestore
 
-- **`/`** — Halaman gerbang utama beserta Studio 3D interaktif (`Three.js`).
-- **`/user`** — Portal Mahasiswa (login melalui **Google Sign-In / Firebase Auth**), pemesanan cetak, pelacakan progres, dan pelaporan kendala (CRUD).
-- **`/mitra`** — Portal Mitra Percetakan (login akun Mitra yang didaftarkan oleh Admin ke database SQLite), pengelolaan antrean pesanan, layanan katalog, status buka/tutup toko, dan pencairan saldo.
-- **`/admin`** — Portal Admin Platform (akun Admin tersimpan aman di SQLite dengan `scrypt` hash), pengaturan persentase komisi potongan mitra (`%`), registrasi Mitra, dan CRUD penuh seluruh pesanan, katalog, tiket, serta akun database.
+Seluruh data aplikasi (profil mahasiswa, akun & undangan Admin, daftar toko Mitra, katalog tarif layanan, pesanan cetak, tiket kendala, pencairan saldo, dan pengaturan komisi `%`) disimpan langsung di **Cloud Firestore** dengan otentikasi **Firebase Authentication (Google Sign-In)** dan proteksi **Firestore Security Rules** (`firestore.rules`).
 
-## Menyambungkan ke GitHub
+### Portal & Peran Pengguna
 
-Repositori ini siap dihubungkan dan di-push ke GitHub:
+- **`/Print-Kampus/`** (atau **`/`** saat dev lokal) — Gerbang utama beserta Studio 3D interaktif (`Three.js`).
+- **`/Print-Kampus/user`** — Portal Mahasiswa (Google Sign-In via Firebase Auth), pemesanan cetak, pelacakan progres, dan pelaporan kendala (CRUD).
+- **`/Print-Kampus/mitra`** — Portal Mitra Percetakan (Google Sign-In untuk email Mitra yang telah didaftarkan Admin), pengelolaan antrean pesanan, layanan katalog, status buka/tutup toko, dan pengajuan pencairan saldo.
+- **`/Print-Kampus/admin`** — Portal Admin Platform (Google Sign-In untuk Super Admin / Admin terundang di Firestore), pengaturan persentase komisi potongan mitra (`%`), registrasi Mitra, dan CRUD penuh pesanan, katalog, tiket, pencairan saldo, serta akun.
+
+## Deploy Otomatis ke GitHub Pages
+
+Proyek ini sudah dikonfigurasi dengan `base: '/Print-Kampus/'` di `vite.config.ts` (beserta fallback `dist/404.html` untuk SPA routing) dan workflow otomatis di `.github/workflows/deploy.yml`:
+
+1. Push repositori ke GitHub (branch `main` atau `master`):
+   ```bash
+   git add .
+   git commit -m "Migrate PRINT KAMPUS to 100% Firebase + GitHub Pages"
+   git push -u origin main
+   ```
+2. Di repositori GitHub, buka **Settings → Pages → Build and deployment → Source**, lalu pilih **GitHub Actions**.
+3. Di **Firebase Console → Authentication → Settings → Authorized domains**, tambahkan domain `<username>.github.io` agar popup Google Sign-In berjalan di GitHub Pages.
+4. Situs Anda akan otomatis terbit di `https://<username>.github.io/Print-Kampus/` setiap kali ada push ke `main`.
+
+## Pengembangan Lokal
 
 ```bash
-git init -b main
-git add .
-git commit -m "Initial commit PRINT KAMPUS"
-git remote add origin https://github.com/<username>/<nama-repo>.git
-git push -u origin main
+npm install
+npm run dev        # Menjalankan Vite dev server di http://localhost:3000
+npm run lint       # TypeScript typecheck
+npm run lint:rules # Validasi ESLint untuk firestore.rules
+npm test           # Unit test perhitungan harga & transisi status
+npm run build      # Build static bundle untuk GitHub Pages (/Print-Kampus/)
 ```
-
-File sensitif dan data lokal (`.env*`, `data/`, `*.db*`, `node_modules/`, `dist/`) sudah dikecualikan di `.gitignore`. Workflow CI otomatis tersedia di `.github/workflows/ci.yml`.
-
-## Menjalankan dari Clone GitHub
-
-1. Instal dependensi:
-   ```bash
-   npm install
-   ```
-2. Salin `.env.example` menjadi `.env` dan sesuaikan variabel lingkungan (misalnya `SESSION_SECRET`, serta `VITE_FIREBASE_*` / `FIREBASE_PROJECT_ID` bila mengganti proyek Firebase):
-   ```bash
-   cp .env.example .env
-   ```
-3. Jalankan mode pengembangan (port `3000`):
-   ```bash
-   npm run dev
-   ```
-4. Build & jalankan mode produksi:
-   ```bash
-   npm run build
-   NODE_ENV=production npm start
-   ```
-5. Jalankan pemeriksaan tipe dan unit test:
-   ```bash
-   npm run lint
-   npm test
-   ```

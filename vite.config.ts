@@ -4,16 +4,39 @@ import fs from 'fs';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const GH_PAGES_BASE = '/Print-Kampus/';
+
 export default defineConfig(() => {
   return {
+    base: GH_PAGES_BASE,
     plugins: [
       react(),
       tailwindcss(),
-      // Copies src/assets into dist/ so root-relative URLs like
-      // "/src/assets/images/..." (e.g. generate_image output) still resolve
-      // in production builds. Do not remove.
+      // Allow local Vite dev server to accept root paths (/, /user, /mitra, /admin)
+      // transparently while keeping base: '/Print-Kampus/' for GitHub Pages builds.
       {
-        name: 'copy-unbundled-src-assets',
+        name: 'dev-root-rewrite-for-gh-pages-base',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            const rawUrl = req.url || '/';
+            const [pathname, query] = rawUrl.split('?');
+            if (
+              !pathname.startsWith(GH_PAGES_BASE) &&
+              !pathname.startsWith('/@') &&
+              !pathname.startsWith('/node_modules') &&
+              !pathname.startsWith('/src/') &&
+              !pathname.includes('.')
+            ) {
+              const suffix = pathname === '/' ? '' : pathname.replace(/^\//, '');
+              req.url = `${GH_PAGES_BASE}${suffix}${query ? `?${query}` : ''}`;
+            }
+            next();
+          });
+        },
+      },
+      // Copies src/assets into dist/ and creates dist/404.html for GitHub Pages SPA routing.
+      {
+        name: 'copy-unbundled-src-assets-and-spa-404',
         apply: 'build',
         closeBundle(error?: Error): void {
           if (error) {
@@ -25,6 +48,11 @@ export default defineConfig(() => {
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
             fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
           }
+          const indexHtml = path.join(distDir, 'index.html');
+          const notFoundHtml = path.join(distDir, '404.html');
+          if (fs.existsSync(indexHtml)) {
+            fs.copyFileSync(indexHtml, notFoundHtml);
+          }
         },
       },
     ],
@@ -34,10 +62,7 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };

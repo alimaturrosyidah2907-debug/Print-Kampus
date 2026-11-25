@@ -1,8 +1,6 @@
 name: PRINT KAMPUS CI
 
 on:
-  push:
-    branches: [main, master]
   pull_request:
     branches: [main, master]
 
@@ -20,10 +18,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: TypeScript typecheck
         run: npm run lint
+
+      - name: Lint Firestore security rules
+        run: npm run lint:rules
 
       - name: Run unit tests
         run: npm test

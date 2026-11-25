@@ -1,8 +1,578 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Pillar 4.1: Global default-deny safety net
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // =========================================================================
+    // GLOBAL HELPERS (Phase 3)
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'alimaturrosyidah2907@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // =========================================================================
+    // VALIDATION BLUEPRINTS (Pillar 2: Anti-Update-Gap)
+    // =========================================================================
+    function isValidUser(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'nim', 'faculty', 'phone', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'name', 'nim', 'faculty', 'phone', 'photoUrl', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && isValidString(data.email, 3, 180)
+        && isValidString(data.name, 1, 120)
+        && isValidString(data.nim, 0, 40)
+        && isValidString(data.faculty, 0, 120)
+        && isValidString(data.phone, 0, 40)
+        && (!('photoUrl' in data) || isValidString(data.photoUrl, 0, 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmin(data, adminId) {
+      return data.keys().hasAll(['uid', 'username', 'email', 'fullName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'username', 'email', 'fullName', 'inviteId', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == adminId
+        && isValidString(data.username, 2, 64)
+        && isValidString(data.email, 3, 180)
+        && isValidString(data.fullName, 1, 120)
+        && (!('inviteId' in data) || isValidId(data.inviteId))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminInvite(data, inviteId) {
+      return data.keys().hasAll(['id', 'email', 'username', 'fullName', 'invitedByUid', 'createdAt'])
+        && data.keys().hasOnly(['id', 'email', 'username', 'fullName', 'invitedByUid', 'createdAt'])
+        && isValidId(data.id)
+        && data.id == inviteId
+        && isValidString(data.email, 3, 180)
+        && isValidString(data.username, 2, 64)
+        && isValidString(data.fullName, 1, 120)
+        && isValidId(data.invitedByUid)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBindingsMap(bindings) {
+      return bindings is map
+        && bindings.keys().hasAll(['none', 'staples', 'lakban', 'spiral_plastik', 'spiral_kawat', 'hardcover'])
+        && bindings.keys().hasOnly(['none', 'staples', 'lakban', 'spiral_plastik', 'spiral_kawat', 'hardcover'])
+        && bindings.none is number && bindings.none >= 0
+        && bindings.staples is number && bindings.staples >= 0
+        && bindings.lakban is number && bindings.lakban >= 0
+        && bindings.spiral_plastik is number && bindings.spiral_plastik >= 0
+        && bindings.spiral_kawat is number && bindings.spiral_kawat >= 0
+        && bindings.hardcover is number && bindings.hardcover >= 0;
+    }
+
+    function isValidPricingMap(pricing) {
+      return pricing is map
+        && pricing.keys().hasAll(['bwPerPage', 'colorPerPage', 'duplexDiscountPerPage', 'bindings'])
+        && pricing.keys().hasOnly(['bwPerPage', 'colorPerPage', 'duplexDiscountPerPage', 'bindings'])
+        && pricing.bwPerPage is number && pricing.bwPerPage >= 50
+        && pricing.colorPerPage is number && pricing.colorPerPage >= 100
+        && pricing.duplexDiscountPerPage is number && pricing.duplexDiscountPerPage >= 0
+        && isValidBindingsMap(pricing.bindings);
+    }
+
+    function isValidServicesList(services) {
+      return services is list
+        && services.size() >= 1
+        && services.size() <= 10
+        && services[0] is string
+        && services[0].size() <= 60;
+    }
+
+    function isValidMitraPublic(data, mitraId) {
+      return data.keys().hasAll(['id', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'rating', 'queueCount', 'servicesOffered', 'pricing', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerUid', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'rating', 'queueCount', 'servicesOffered', 'pricing', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == mitraId
+        && (!('ownerUid' in data) || isValidString(data.ownerUid, 0, 128))
+        && isValidString(data.name, 2, 140)
+        && isValidString(data.campusArea, 2, 120)
+        && isValidString(data.address, 2, 240)
+        && isValidString(data.operatingHours, 2, 80)
+        && data.isOpen is bool
+        && data.rating is number && data.rating >= 0 && data.rating <= 5
+        && data.queueCount is int && data.queueCount >= 0
+        && isValidServicesList(data.servicesOffered)
+        && isValidPricingMap(data.pricing)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMitraPrivate(data, mitraId) {
+      return data.keys().hasAll(['id', 'loginEmail', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'rating', 'queueCount', 'totalCompletedOrders', 'totalEarnings', 'pendingBalance', 'servicesOffered', 'pricing', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'loginEmail', 'ownerUid', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'rating', 'queueCount', 'totalCompletedOrders', 'totalEarnings', 'pendingBalance', 'servicesOffered', 'pricing', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == mitraId
+        && isValidString(data.loginEmail, 3, 180)
+        && (!('ownerUid' in data) || isValidString(data.ownerUid, 0, 128))
+        && isValidString(data.name, 2, 140)
+        && isValidString(data.campusArea, 2, 120)
+        && isValidString(data.address, 2, 240)
+        && isValidString(data.operatingHours, 2, 80)
+        && data.isOpen is bool
+        && data.rating is number && data.rating >= 0 && data.rating <= 5
+        && data.queueCount is int && data.queueCount >= 0
+        && data.totalCompletedOrders is int && data.totalCompletedOrders >= 0
+        && data.totalEarnings is number && data.totalEarnings >= 0
+        && data.pendingBalance is number && data.pendingBalance >= 0
+        && isValidServicesList(data.servicesOffered)
+        && isValidPricingMap(data.pricing)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidService(data, serviceId) {
+      return data.keys().hasAll(['id', 'code', 'category', 'name', 'description', 'basePrice', 'unit', 'isActive', 'createdByRole', 'ownerUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'code', 'category', 'name', 'description', 'basePrice', 'unit', 'isActive', 'createdByRole', 'ownerUid', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == serviceId
+        && isValidString(data.code, 1, 32)
+        && data.category in ['kertas', 'warna', 'jilid', 'finishing']
+        && isValidString(data.name, 2, 120)
+        && isValidString(data.description, 0, 400)
+        && data.basePrice is number && data.basePrice >= 0
+        && isValidString(data.unit, 1, 40)
+        && data.isActive is bool
+        && data.createdByRole in ['user', 'mitra', 'admin']
+        && isValidId(data.ownerUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['platformCommissionPercent', 'minimumOrderAmount', 'firstOrderDiscount', 'payoutMinimum', 'supportHotline', 'updatedAt'])
+        && data.keys().hasOnly(['platformCommissionPercent', 'minimumOrderAmount', 'firstOrderDiscount', 'payoutMinimum', 'supportHotline', 'updatedAt'])
+        && data.platformCommissionPercent is number && data.platformCommissionPercent >= 0 && data.platformCommissionPercent <= 50
+        && data.minimumOrderAmount is number && data.minimumOrderAmount >= 0
+        && data.firstOrderDiscount is number && data.firstOrderDiscount >= 0
+        && data.payoutMinimum is number && data.payoutMinimum >= 10000
+        && isValidString(data.supportHotline, 3, 160)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStatusHistory(history) {
+      return history is list
+        && history.size() >= 1
+        && history.size() <= 20
+        && history[0] is map
+        && history[0].keys().hasAll(['status', 'timestamp', 'note']);
+    }
+
+    function isValidOrder(data, orderId) {
+      return data.keys().hasAll(['id', 'orderNumber', 'userId', 'studentName', 'studentNim', 'studentPhone', 'mitraId', 'mitraOwnerUid', 'mitraName', 'mitraLocation', 'documentTitle', 'fileName', 'fileSize', 'pageCount', 'copies', 'colorType', 'paperSize', 'paperWeight', 'duplex', 'binding', 'notes', 'unitPrintPrice', 'unitBindingPrice', 'subtotal', 'platformFee', 'mitraEarnings', 'totalAmount', 'paymentMethod', 'paymentStatus', 'status', 'statusHistory', 'pickupDeadline', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orderNumber', 'userId', 'studentName', 'studentNim', 'studentPhone', 'studentEmail', 'mitraId', 'mitraOwnerUid', 'mitraName', 'mitraLocation', 'documentTitle', 'fileName', 'fileSize', 'pageCount', 'copies', 'colorType', 'paperSize', 'paperWeight', 'duplex', 'binding', 'notes', 'unitPrintPrice', 'unitBindingPrice', 'subtotal', 'platformFee', 'mitraEarnings', 'totalAmount', 'paymentMethod', 'paymentStatus', 'status', 'statusHistory', 'pickupDeadline', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == orderId
+        && isValidString(data.orderNumber, 4, 40)
+        && isValidId(data.userId)
+        && isValidString(data.studentName, 1, 120)
+        && isValidString(data.studentNim, 0, 40)
+        && isValidString(data.studentPhone, 0, 40)
+        && (!('studentEmail' in data) || isValidString(data.studentEmail, 0, 180))
+        && isValidId(data.mitraId)
+        && isValidString(data.mitraOwnerUid, 0, 128)
+        && isValidString(data.mitraName, 1, 140)
+        && isValidString(data.mitraLocation, 1, 160)
+        && isValidString(data.documentTitle, 1, 200)
+        && isValidString(data.fileName, 1, 200)
+        && isValidString(data.fileSize, 1, 40)
+        && data.pageCount is int && data.pageCount >= 1 && data.pageCount <= 5000
+        && data.copies is int && data.copies >= 1 && data.copies <= 500
+        && data.colorType in ['bw', 'color', 'mixed']
+        && data.paperSize in ['A4', 'F4', 'A3']
+        && data.paperWeight in ['70gr', '80gr', '100gr']
+        && data.duplex is bool
+        && data.binding in ['none', 'staples', 'lakban', 'spiral_plastik', 'spiral_kawat', 'hardcover']
+        && isValidString(data.notes, 0, 500)
+        && data.unitPrintPrice is number && data.unitPrintPrice >= 0
+        && data.unitBindingPrice is number && data.unitBindingPrice >= 0
+        && data.subtotal is number && data.subtotal >= 0
+        && data.platformFee is number && data.platformFee >= 0
+        && data.mitraEarnings is number && data.mitraEarnings >= 0
+        && data.totalAmount is number && data.totalAmount == data.subtotal
+        && data.platformFee + data.mitraEarnings == data.subtotal
+        && data.paymentMethod in ['QRIS', 'GoPay', 'DANA', 'ShopeePay', 'Transfer VA', 'COD']
+        && data.paymentStatus in ['lunas', 'menunggu_bayar', 'bayar_di_tempat']
+        && data.status in ['menunggu_konfirmasi', 'diproses', 'siap_diambil', 'selesai', 'dibatalkan']
+        && isValidStatusHistory(data.statusHistory)
+        && isValidString(data.pickupDeadline, 1, 80)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTicket(data, ticketId) {
+      return data.keys().hasAll(['id', 'orderId', 'orderNumber', 'userId', 'reporterName', 'reporterRole', 'category', 'description', 'status', 'adminNote', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'orderId', 'orderNumber', 'userId', 'reporterName', 'reporterRole', 'category', 'description', 'status', 'adminNote', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == ticketId
+        && isValidString(data.orderId, 1, 128)
+        && isValidString(data.orderNumber, 1, 40)
+        && isValidId(data.userId)
+        && isValidString(data.reporterName, 1, 120)
+        && data.reporterRole in ['user', 'mitra', 'admin']
+        && data.category in ['salah_cetak', 'keterlambatan', 'kertas_rusak', 'salah_jilid', 'pembayaran', 'lainnya']
+        && isValidString(data.description, 3, 1000)
+        && data.status in ['terbuka', 'investigasi', 'selesai', 'ditolak']
+        && isValidString(data.adminNote, 0, 500)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayout(data, payoutId) {
+      return data.keys().hasAll(['id', 'mitraId', 'mitraLoginEmail', 'mitraName', 'amount', 'bankAccount', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'mitraId', 'mitraLoginEmail', 'mitraName', 'amount', 'bankAccount', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && data.id == payoutId
+        && isValidId(data.mitraId)
+        && isValidString(data.mitraLoginEmail, 3, 180)
+        && isValidString(data.mitraName, 1, 140)
+        && data.amount is number && data.amount > 0
+        && isValidString(data.bankAccount, 3, 140)
+        && data.status in ['pending', 'selesai', 'ditolak']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // COLLECTION MATCH BLOCKS
+    // =========================================================================
+
+    // 1. Users (PII strict owner or Admin only)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isValidId(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isOwner(userId) || isAdmin());
+      allow update: if isValidId(userId)
+        && isValidUser(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'nim', 'faculty', 'phone', 'photoUrl', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 2. Admins
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isValidId(adminId)
+        && isValidAdmin(incoming(), adminId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin() ||
+          isAdmin() ||
+          (
+            isOwner(adminId) &&
+            'inviteId' in incoming() &&
+            isValidId(incoming().inviteId) &&
+            get(/databases/$(database)/documents/admin_invites/$(incoming().inviteId)).data.email == request.auth.token.email
+          )
+        );
+      allow update: if isValidId(adminId)
+        && isValidAdmin(incoming(), adminId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin()
+        && incoming().diff(existing()).affectedKeys().hasOnly(['username', 'email', 'fullName', 'updatedAt']);
+      allow delete: if isValidId(adminId) && isAdmin() && request.auth.uid != adminId;
+    }
+
+    // 3. Admin Invites
+    match /admin_invites/{inviteId} {
+      allow get: if isValidId(inviteId) && isAdmin();
+      allow list: if isVerifiedUser() && (resource.data.email == request.auth.token.email || isAdmin());
+      allow create: if isValidId(inviteId)
+        && isValidAdminInvite(incoming(), inviteId)
+        && incoming().createdAt == request.time
+        && isAdmin();
+      allow update: if false;
+      allow delete: if isValidId(inviteId) && (isAdmin() || (isVerifiedUser() && existing().email == request.auth.token.email));
+    }
+
+    // 4. Mitra Public Storefront (No PII, public directory for students)
+    match /mitra_public/{mitraId} {
+      allow get: if isValidId(mitraId);
+      allow list: if true;
+      allow create: if isValidId(mitraId)
+        && isValidMitraPublic(incoming(), mitraId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isValidId(mitraId)
+        && isValidMitraPublic(incoming(), mitraId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isVerifiedUser() &&
+            get(/databases/$(database)/documents/mitras/$(mitraId)).data.loginEmail == request.auth.token.email &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['ownerUid', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'queueCount', 'servicesOffered', 'pricing', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(mitraId) && isAdmin();
+    }
+
+    // 5. Mitra Private (Owner email + financial balances restricted to Mitra owner & Admin)
+    match /mitras/{mitraId} {
+      allow get: if isValidId(mitraId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().loginEmail == request.auth.token.email)
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.loginEmail == request.auth.token.email ||
+        isAdmin()
+      );
+      allow create: if isValidId(mitraId)
+        && isValidMitraPrivate(incoming(), mitraId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isValidId(mitraId)
+        && isValidMitraPrivate(incoming(), mitraId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isVerifiedUser() &&
+            existing().loginEmail == request.auth.token.email &&
+            incoming().loginEmail == existing().loginEmail && (
+              // Action 1: Update store profile, ownerUid claim, open toggle, and print pricing
+              incoming().diff(existing()).affectedKeys().hasOnly(['ownerUid', 'name', 'campusArea', 'address', 'operatingHours', 'isOpen', 'servicesOffered', 'pricing', 'updatedAt']) ||
+              // Action 2: Process order completion / queue transition
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['queueCount', 'totalCompletedOrders', 'totalEarnings', 'pendingBalance', 'updatedAt']) &&
+                incoming().totalCompletedOrders <= existing().totalCompletedOrders + 1 &&
+                incoming().totalEarnings >= existing().totalEarnings
+              )
+            )
+          )
+        );
+      allow delete: if isValidId(mitraId) && isAdmin();
+    }
+
+    // 6. Print Services Catalog
+    match /services/{serviceId} {
+      allow get: if isValidId(serviceId);
+      allow list: if true;
+      allow create: if isValidId(serviceId)
+        && isValidService(incoming(), serviceId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && incoming().ownerUid == request.auth.uid && incoming().createdByRole == 'mitra')
+        );
+      allow update: if isValidId(serviceId)
+        && isValidService(incoming(), serviceId)
+        && incoming().id == existing().id
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && existing().ownerUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['code', 'category', 'name', 'description', 'basePrice', 'unit', 'isActive', 'updatedAt']))
+        );
+      allow delete: if isValidId(serviceId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().ownerUid == request.auth.uid)
+      );
+    }
+
+    // 7. Global Commission Settings
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId) && settingId == 'platform';
+      allow list: if false;
+      allow create, update: if isValidId(settingId)
+        && settingId == 'platform'
+        && isValidSettings(incoming())
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if false;
+    }
+
+    // 8. Print Orders
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && (
+        isAdmin() ||
+        (isVerifiedUser() && (
+          existing().userId == request.auth.uid ||
+          existing().mitraOwnerUid == request.auth.uid ||
+          get(/databases/$(database)/documents/mitras/$(existing().mitraId)).data.loginEmail == request.auth.token.email
+        ))
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.mitraOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/mitra_public/$(incoming().mitraId))
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && incoming().userId == request.auth.uid && incoming().status == 'menunggu_konfirmasi')
+        );
+      allow update: if isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().id == existing().id
+        && incoming().orderNumber == existing().orderNumber
+        && incoming().userId == existing().userId
+        && incoming().mitraId == existing().mitraId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().status == 'menunggu_konfirmasi' &&
+            isVerifiedUser() &&
+            existing().userId == request.auth.uid &&
+            incoming().status in ['menunggu_konfirmasi', 'dibatalkan'] &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['studentName', 'studentNim', 'studentPhone', 'documentTitle', 'fileName', 'fileSize', 'pageCount', 'copies', 'colorType', 'paperSize', 'paperWeight', 'duplex', 'binding', 'notes', 'unitPrintPrice', 'unitBindingPrice', 'subtotal', 'platformFee', 'mitraEarnings', 'totalAmount', 'paymentMethod', 'paymentStatus', 'status', 'statusHistory', 'pickupDeadline', 'updatedAt'])
+          ) ||
+          (
+            existing().status != 'selesai' &&
+            existing().status != 'dibatalkan' &&
+            isVerifiedUser() &&
+            (
+              existing().mitraOwnerUid == request.auth.uid ||
+              get(/databases/$(database)/documents/mitras/$(existing().mitraId)).data.loginEmail == request.auth.token.email
+            ) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['mitraOwnerUid', 'status', 'paymentStatus', 'statusHistory', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(orderId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().userId == request.auth.uid && existing().status == 'menunggu_konfirmasi')
+      );
+    }
+
+    // 9. Issue Tickets
+    match /tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().userId == request.auth.uid)
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isValidId(ticketId)
+        && isValidTicket(incoming(), ticketId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && incoming().userId == request.auth.uid && incoming().status == 'terbuka' && incoming().adminNote == '')
+        );
+      allow update: if isValidId(ticketId)
+        && isValidTicket(incoming(), ticketId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().status == 'terbuka' &&
+            isVerifiedUser() &&
+            existing().userId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['category', 'description', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(ticketId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().userId == request.auth.uid && existing().status == 'terbuka')
+      );
+    }
+
+    // 10. Mitra Payouts
+    match /payouts/{payoutId} {
+      allow get: if isValidId(payoutId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().mitraLoginEmail == request.auth.token.email)
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.mitraLoginEmail == request.auth.token.email ||
+        isAdmin()
+      );
+      allow create: if isValidId(payoutId)
+        && isValidPayout(incoming(), payoutId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isVerifiedUser() && incoming().mitraLoginEmail == request.auth.token.email && incoming().status == 'pending')
+        );
+      allow update: if isValidId(payoutId)
+        && isValidPayout(incoming(), payoutId)
+        && incoming().id == existing().id
+        && incoming().mitraId == existing().mitraId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().status == 'pending'
+        && isAdmin()
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(payoutId) && (
+        isAdmin() ||
+        (isVerifiedUser() && existing().mitraLoginEmail == request.auth.token.email && existing().status == 'pending')
+      );
     }
   }
 }
