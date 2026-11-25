@@ -1,0 +1,17 @@
+{
+  "entities": {
+    "AuthConnectionCheck": {
+      "title": "AuthConnectionCheck",
+      "description": "Minimal Firebase setup check; operational records and hashed credentials are stored in server-side SQLite.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "maxLength": 32
+        }
+      },
+      "required": ["status"]
+    }
+  },
+  "firestore": {}
+}

@@ -1,0 +1,6 @@
+{
+  "name": "PRINT KAMPUS",
+  "description": "PRINT KAMPUS — Platform pemesanan cetak dokumen kampus dengan portal terpisah User, Mitra Percetakan, dan Admin Platform serta studio pratinjau 3D.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
